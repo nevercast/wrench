@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Wrench Sound Effect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .button {
+            width: 100%;
+            height: 150px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .button.load {
+            background: #3b82f6;
+        }
+
+        .button.remove {
+            background: #ef4444;
+        }
+
+        .button.replace {
+            background: #10b981;
+        }
+
+        .button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .button {
+                height: 120px;
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .button {
+                height: 100px;
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button id="loadButton" class="button load">
+            Load Audio
+        </button>
+        <button id="removeButton" class="button remove hidden">
+            Remove
+        </button>
+        <button id="replaceButton" class="button replace hidden">
+            Replace
+        </button>
+    </div>
+
+    <!-- Load audio data from external file -->
+    <script src="audio.js"></script>
+    
+    <script>
+        // Audio segment boundaries (in seconds) - adjust these as needed
+        const REMOVE_START = 0.0;
+        const REMOVE_END = 0.7;
+        const REPLACE_START = 1.3;
+        // REPLACE_END will be set to audio duration
+
+        class AudioController {
+            constructor() {
+                this.audioContext = null;
+                this.audioBuffer = null;
+                this.currentSource = null;
+                this.loadButton = document.getElementById('loadButton');
+                this.removeButton = document.getElementById('removeButton');
+                this.replaceButton = document.getElementById('replaceButton');
+                
+                this.init();
+            }
+
+            init() {
+                // Set up load button
+                this.loadButton.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await this.loadAudioWithContext();
+                });
+
+                // Set up play buttons
+                this.removeButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.playRemove();
+                });
+
+                this.replaceButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.playReplace();
+                });
+
+                // Touch events
+                this.loadButton.addEventListener('touchstart', async (e) => {
+                    e.preventDefault();
+                    await this.loadAudioWithContext();
+                }, { passive: false });
+
+                this.removeButton.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.playRemove();
+                }, { passive: false });
+
+                this.replaceButton.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.playReplace();
+                }, { passive: false });
+
+                // Prevent double-triggering
+                [this.loadButton, this.removeButton, this.replaceButton].forEach(button => {
+                    button.addEventListener('touchend', (e) => {
+                        e.preventDefault();
+                    });
+                });
+            }
+
+            async loadAudioWithContext() {
+                try {
+                    this.loadButton.disabled = true;
+                    this.loadButton.textContent = 'Loading...';
+
+                    // Initialize audio context
+                    if (!this.audioContext) {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        // Resume context if suspended
+                        if (this.audioContext.state === 'suspended') {
+                            await this.audioContext.resume();
+                        }
+                    }
+
+                    // Fetch and decode audio from base64
+                    const response = await fetch(AUDIO_DATA_URL);
+                    const arrayBuffer = await response.arrayBuffer();
+                    this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+
+                    console.log('Audio loaded successfully, duration:', this.audioBuffer.duration);
+                    console.log(`REMOVE segment: ${REMOVE_START}s to ${REMOVE_END}s`);
+                    console.log(`REPLACE segment: ${REPLACE_START}s to ${this.audioBuffer.duration}s`);
+                    
+                    // Hide load button, show play buttons
+                    this.loadButton.classList.add('hidden');
+                    this.removeButton.classList.remove('hidden');
+                    this.replaceButton.classList.remove('hidden');
+                } catch (error) {
+                    console.error('Error loading audio:', error);
+                    this.loadButton.textContent = 'Error - Click to Retry';
+                    this.loadButton.disabled = false;
+                }
+            }
+
+            playRemove() {
+                if (!this.audioBuffer) {
+                    console.log('Audio not ready');
+                    return;
+                }
+
+                // Stop any currently playing audio
+                this.stopCurrentAudio();
+
+                // Play REMOVE segment
+                this.playSegment(REMOVE_START, REMOVE_END);
+            }
+
+            playReplace() {
+                if (!this.audioBuffer) {
+                    console.log('Audio not ready');
+                    return;
+                }
+
+                // Stop any currently playing audio
+                this.stopCurrentAudio();
+
+                // Play REPLACE segment
+                this.playSegment(REPLACE_START, this.audioBuffer.duration);
+            }
+
+            playSegment(startTime, endTime) {
+                try {
+                    // Create a new buffer source
+                    this.currentSource = this.audioContext.createBufferSource();
+                    this.currentSource.buffer = this.audioBuffer;
+                    this.currentSource.connect(this.audioContext.destination);
+
+                    // Calculate duration
+                    const duration = endTime - startTime;
+                    
+                    console.log(`Playing segment: ${startTime}s to ${endTime}s (duration: ${duration}s)`);
+
+                    // Start playback at the specified offset
+                    this.currentSource.start(0, startTime, duration);
+
+                    // Clean up reference when playback ends
+                    this.currentSource.onended = () => {
+                        this.currentSource = null;
+                    };
+                } catch (error) {
+                    console.error('Playback error:', error);
+                }
+            }
+
+            stopCurrentAudio() {
+                if (this.currentSource) {
+                    try {
+                        this.currentSource.stop();
+                        this.currentSource.disconnect();
+                    } catch (error) {
+                        // Source might already be stopped
+                    }
+                    this.currentSource = null;
+                }
+            }
+        }
+
+        // Initialize the audio controller
+        const audioController = new AudioController();
+    </script>
+</body>
+</html>
